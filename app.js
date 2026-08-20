@@ -42,19 +42,41 @@ const AVATAR=`
 
 let S={route:"routines",cat:null,i:0,left:0,paused:false,transition:false,transLeft:5,timer:null,done:+localStorage.getItem("m50done")||0,bp:JSON.parse(localStorage.getItem("m50bp")||"[]")};
 const V=document.getElementById("view");
+
+let voiceOn = localStorage.getItem("m50voice") !== "off";
+function speak(text){
+  if(!voiceOn || !("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang="es-GT"; u.rate=.92; u.pitch=1; u.volume=1;
+  speechSynthesis.speak(u);
+}
+function toggleVoice(){
+  voiceOn=!voiceOn;
+  localStorage.setItem("m50voice",voiceOn?"on":"off");
+  if(!voiceOn && "speechSynthesis" in window) speechSynthesis.cancel();
+  render();
+  if(voiceOn && S.route==="exercise") announceExercise();
+}
+function announceExercise(){
+  if(S.route!=="exercise"||!S.cat) return;
+  const e=ROUTINES[S.cat].items[S.i];
+  speak(`${e[0]}. Objetivo: ${e[1]}. ${e[4]} ${e[5]}`);
+}
+
 aa.onclick=()=>document.documentElement.classList.toggle("big");
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>go(b.dataset.r));
 function clearTimer(){if(S.timer){clearInterval(S.timer);S.timer=null}}
 function go(r){clearTimer();S.route=r;S.cat=null;S.transition=false;render();scrollTo(0,0)}
 function routines(){return `<h1>Rutinas</h1>`+Object.entries(ROUTINES).map(([k,r])=>`<div class="card routine"><div class="ico">${r.icon}</div><div class="body"><h2>${r.name}</h2><div class="muted">${r.meta}</div><button class="btn secondary" style="margin-top:12px" onclick="start('${k}')">Comenzar</button></div></div>`).join("")}
-function start(k){clearTimer();S.cat=k;S.i=0;S.left=ROUTINES[k].items[0][2];S.route="exercise";S.paused=false;S.transition=false;render();startExerciseTimer();scrollTo(0,0)}
+function start(k){clearTimer();S.cat=k;S.i=0;S.left=ROUTINES[k].items[0][2];S.route="exercise";S.paused=false;S.transition=false;render();startExerciseTimer();announceExercise();scrollTo(0,0)}
 function format(sec){let m=Math.floor(sec/60),s=sec%60;return `${m}:${String(s).padStart(2,"0")}`}
 function exercise(){
  let r=ROUTINES[S.cat],e=r.items[S.i];
  return `<div class="eyebrow">${r.name.toUpperCase()}</div><div style="display:flex;justify-content:space-between;align-items:center"><h1 style="margin-bottom:8px">${e[0]}</h1><b>${S.i+1}/${r.items.length}</b></div>
  <div class="progress"><i style="width:${(S.i+1)/r.items.length*100}%"></i></div>
  <div class="avatar-stage ${e[3]}"><div class="human3d">${AVATAR}</div></div>
- <div class="timer" id="timerText">${format(S.left)}</div>
+ <div class="timer" id="timerText">${format(S.left)}</div><button class="voiceBtn" onclick="toggleVoice()">${voiceOn?"🔊 Voz activa":"🔇 Voz desactivada"}</button>
  <div class="card" style="margin-top:14px"><div class="eyebrow">OBJETIVO</div><h1>${e[1]}</h1><h2>Cómo hacerlo</h2><p>${e[4]}</p>
  <div class="notice"><b>Respira</b><br>${e[5]}</div><div class="notice warning">Detente si aparece mareo, dolor en el pecho o falta de aire inusual.</div>
  <div class="controls"><button class="btn secondary" onclick="togglePause()" id="pauseBtn">${S.paused?"▶ Continuar":"Ⅱ Pausar"}</button><button class="btn" onclick="finishExercise()">Siguiente →</button></div>
@@ -74,14 +96,14 @@ function finishExercise(){
  clearTimer();
  let r=ROUTINES[S.cat];
  if(S.i>=r.items.length-1){S.done++;localStorage.setItem("m50done",S.done);S.route="finish";render();return}
- S.transition=true;S.transLeft=5;renderTransition();
- S.timer=setInterval(()=>{S.transLeft--;if(S.transLeft<=0){clearTimer();S.i++;S.left=r.items[S.i][2];S.transition=false;S.paused=false;render();startExerciseTimer();scrollTo(0,0)}else renderTransition()},1000)
+ S.transition=true;S.transLeft=5;speak(`Ejercicio terminado. Prepárate para ${r.items[S.i+1][0]}`);renderTransition();
+ S.timer=setInterval(()=>{S.transLeft--;if(S.transLeft<=0){clearTimer();S.i++;S.left=r.items[S.i][2];S.transition=false;S.paused=false;render();startExerciseTimer();announceExercise();scrollTo(0,0)}else renderTransition()},1000)
 }
 function renderTransition(){
  let r=ROUTINES[S.cat],n=r.items[S.i+1];
  V.innerHTML=`<div class="transition"><div class="eyebrow">SIGUIENTE EJERCICIO EN</div><div class="count">${S.transLeft}</div><h1>Prepárate…</h1><div class="next-card"><div class="muted">PRÓXIMO</div><h2>${n[0]}</h2><b>${n[1]}</b></div><button class="btn secondary" onclick="skipTransition()">Omitir espera</button></div>`
 }
-function skipTransition(){clearTimer();let r=ROUTINES[S.cat];S.i++;S.left=r.items[S.i][2];S.transition=false;render();startExerciseTimer();scrollTo(0,0)}
+function skipTransition(){clearTimer();let r=ROUTINES[S.cat];S.i++;S.left=r.items[S.i][2];S.transition=false;render();startExerciseTimer();announceExercise();scrollTo(0,0)}
 function home(){return `<div class="card hero"><div class="eyebrow">TU MOVIMIENTO DE HOY</div><h1>Solo entrena.<br>La app se encarga del resto.</h1><p>Elige una rutina y los ejercicios avanzarán automáticamente.</p><button class="btn" onclick="go('routines')">Ver las 4 rutinas</button></div><div class="card"><h2>Rutinas completadas</h2><h1>${S.done}</h1></div>`}
 function health(){let last=S.bp.at(-1);return `<h1>Mi salud</h1><div class="card"><h2>Registrar presión arterial</h2><div class="field"><input id="sys" inputmode="numeric" placeholder="Sistólica"><input id="dia" inputmode="numeric" placeholder="Diastólica"></div><button class="btn" style="margin-top:13px" onclick="saveBP()">Guardar</button><div id="msg"></div></div><div class="card"><h2>Última lectura</h2><h1>${last?last.s+"/"+last.d:"— / —"}</h1><span class="muted">mmHg</span></div>`}
 function saveBP(){let s=+sys.value,d=+dia.value;if(!s||!d)return;S.bp.push({s,d,t:Date.now()});localStorage.setItem("m50bp",JSON.stringify(S.bp));msg.innerHTML=(s>180||d>120)?`<div class="notice danger"><b>Lectura muy alta.</b><br>No inicies ejercicio. Descansa al menos 1 minuto y repite la medición. Si continúa por encima de 180/120, contacta de inmediato a un profesional de salud. Con síntomas de alarma, busca atención de emergencia.</div>`:`<div class="notice">Registro guardado.</div>`}
